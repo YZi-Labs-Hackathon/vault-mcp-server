@@ -7,7 +7,8 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
-import { PartnrClient } from "./PartnrClient";
+import { PartnrClient, Fee, WithdrawTerm, DepositRule, ActivityStatus, VaultStatus } from "./PartnrClient";
+import { parseUnits } from "ethers";
 import * as Interfaces from './interfaces';
 import * as Tools from './tools';
 
@@ -71,6 +72,167 @@ async function main() {
               content: [{ type: "text", text: JSON.stringify(response) }],
             };
           }
+
+          case "creator_create_vault": {
+            const args = request.params.arguments as unknown as Interfaces.CreateVaultArgs;
+            if (!args.name) {
+              throw new Error(
+                "Missing required arguments: name",
+              );
+            }
+            if (!args.tokenId) {
+              args.tokenId = '4bf4cb78-7572-40df-8232-4582af1aef7b'; // default USDT
+            }
+            const tokenDetail = await partnrClient.getTokenDetail(args.tokenId);
+            if(tokenDetail.statusCode != 200) {
+                throw new Error(
+                  "invalid tokenId",
+                );
+            }
+            const initDeposit = args?.initDeposit || 1;
+            const initDepositAmount = parseUnits(initDeposit.toString(), parseInt(tokenDetail.data.decimals));
+
+            console.error("CreateVaultArgs", args);
+            const depositRule: DepositRule = {
+              min: args.depositMin || 0,
+              max: args.depositMax || 10000,
+            }
+            const fee: Fee = {
+              performanceFee: 5,
+              recipientAddress: initArgs.userAddress,
+              exitFee: 0,
+            }
+            const withdrawTerm: WithdrawTerm = {
+              lockUpPeriod: 0,
+              delay: 0,
+              isMultiSig: false,
+            }
+
+            var response = await partnrClient.createVault(
+              args.name,
+              args.logo || '',
+              args.description || '',
+              args.symbol || args.name,
+              args.tokenId,
+              ['0135856e-f6ba-49c0-82e5-f1050e85396b', 'b8603cb6-33f3-4982-9b88-4978018e07ef'], // pancake + venus
+              '0135856e-f6ba-49c0-82e5-f1050e85396b', // pancake
+              depositRule, fee, withdrawTerm,
+              initDepositAmount
+            );
+            return {
+              content: [{
+                type: "text", text: JSON.stringify(response)
+              }],
+            };
+          }
+
+          case "creator_list_created_vaults": {
+            const args = request.params.arguments as unknown as Interfaces.ListVaultArgs;
+            if (!args.status) {
+              args.status = VaultStatus.ACTIVE;
+            }
+            const response = await partnrClient.listCreatorVaults(args.status);
+            return {
+              content: [{ type: "text", text: JSON.stringify(response) }],
+            };
+          }
+
+          case "partnr_list_vaults": {
+            const args = request.params.arguments as unknown as Interfaces.ListVaultArgs;
+            if (!args.status) {
+              args.status = VaultStatus.ACTIVE;
+            }
+            const response = await partnrClient.listVaults(args.status);
+            return {
+              content: [{ type: "text", text: JSON.stringify(response) }],
+            };
+          }
+
+          case "partnr_vault_detail": {
+            const args = request.params.arguments as unknown as Interfaces.VaultDetailArgs;
+            if (!args.vaultId) {
+              throw new Error(
+                "Missing required arguments: vaultId",
+              );
+            }
+            const response = await partnrClient.getVaultDetail(args.vaultId);
+            const mcpResponse = {
+              statusCode: response.statusCode,
+              message: response.message,
+              data: {
+                name: response.data.name,
+                logo: response.data.logo,
+                description: response.data.description,
+                symbol: response.data.symbol,
+                chainName: response.data.chain.name,
+                tokenName: response.data.token.name,
+                creatorAddress: response.data.creator.address,
+                depositRule: response.data.depositRule,
+                withdrawTerm: response.data.withdrawTerm,
+                fee: response.data.fee,
+                contractAddress: response.data.contractAddress,
+                shareTokenAddress: response.data.shareTokenAddress,
+                status: response.data.status,
+
+                totalLock: response.data.totalLock,
+                yourDeposit: response.data.yourDeposit,
+                apy: response.data.apy,
+                yourPnl: response.data.yourPnl,
+                allTimePnl: response.data.allTimePnl,
+                age: response.data.age,
+                profitShare: response.data.profitShare,
+                maxDrawDown: response.data.maxDrawDown,
+                yourPnl24h: response.data.yourPnl24h
+              }
+            }
+            return {
+              content: [{ type: "text", text: JSON.stringify(mcpResponse) }],
+            };
+          }
+          case "creator_update_vault": {
+            const args = request.params.arguments as unknown as Interfaces.VaultUpdateArgs;
+            if (!args.vaultId) {
+              throw new Error(
+                "Missing required arguments: vaultId",
+              );
+            }
+
+            const vaultDetail = await partnrClient.getVaultDetail(args.vaultId);
+            console.error(vaultDetail.data);
+            const depositRule: DepositRule = {
+              min: args.depositMin || vaultDetail.data.depositRule.min,
+              max: args.depositMax || vaultDetail.data.depositRule.max,
+            }
+            const fee: Fee = {
+              performanceFee: args.performanceFee || vaultDetail.data.fee.performanceFee,
+              recipientAddress: args.feeRecipientAddress || vaultDetail.data.fee.recipientAddress,
+              exitFee: vaultDetail.data.fee.exitFee,
+            }
+            const withdrawTerm: WithdrawTerm = {
+              lockUpPeriod: args.withdrawLockUpPeriod || vaultDetail.data.withdrawTerm.lockUpPeriod,
+              delay: args.withdrawDelay || vaultDetail.data.withdrawTerm.delay,
+              isMultiSig: vaultDetail.data.withdrawTerm.isMultiSig,
+            }
+
+            const response = await partnrClient.updateVault(
+              args.vaultId,
+              args.logo || vaultDetail.data.logo,
+              args.description || vaultDetail.data.description,
+              depositRule, fee, withdrawTerm,
+              args.protocolIds || []
+            );
+            if (response.statusCode == 200) {
+              return {
+                content: [{ type: "text", text: JSON.stringify(response) }],
+              };
+            }
+          }
+
+          case "partnr_clear_conversation": {
+            return {
+              content: [{ type: "text", text: JSON.stringify({message: 'Success'}) }],
+            };
+          }
           default:
             throw new Error(`Unknown tool: ${request.params.name}`);
         }
@@ -95,9 +257,15 @@ async function main() {
     console.error("Received ListToolsRequest");
       return {
         tools: [
+          Tools.clearConversation,
           Tools.listChainsTool,
           Tools.listProtocolsTool,
           Tools.listTokensTool,
+          Tools.createVaultTool,
+          Tools.creatorListCreatedVaultsTool,
+          Tools.listVaultsTool,
+          Tools.vaultDetailTool,
+          Tools.vaultUpdateTool,
         ],
       };
 
