@@ -45,6 +45,7 @@ async function main() {
 
         
         await partnrClient.connect(initArgs.accessToken, initArgs.userAddress, initArgs.baseUrl);
+      
         switch (request.params.name) {
           case "partnr_list_chains": {
             const response = await partnrClient.listChains();
@@ -83,6 +84,9 @@ async function main() {
             if (!args.tokenId) {
               args.tokenId = '4bf4cb78-7572-40df-8232-4582af1aef7b'; // default USDT
             }
+            if (!args.defaultProtocolId) {
+              args.defaultProtocolId = '0135856e-f6ba-49c0-82e5-f1050e85396b'; // pancake
+            }
             const tokenDetail = await partnrClient.getTokenDetail(args.tokenId);
             if(tokenDetail.statusCode != 200) {
                 throw new Error(
@@ -114,8 +118,8 @@ async function main() {
               args.description || '',
               args.symbol || args.name,
               args.tokenId,
-              ['0135856e-f6ba-49c0-82e5-f1050e85396b', 'b8603cb6-33f3-4982-9b88-4978018e07ef'], // pancake + venus
-              '0135856e-f6ba-49c0-82e5-f1050e85396b', // pancake
+              [args.defaultProtocolId], // pancake
+              args.defaultProtocolId, // pancake
               depositRule, fee, withdrawTerm,
               initDepositAmount
             );
@@ -228,9 +232,147 @@ async function main() {
             }
           }
 
+          // Withdraw
+          case "creator_list_vault_transactions": {
+            const args = request.params.arguments as unknown as Interfaces.ListTransactionArgs;
+            if (!args.vaultId) {
+              throw new Error(
+                "Missing required arguments: vaultId",
+              );
+            }
+            let query = {
+              limit: args.limit?.toString() || "20",
+              page: args.page?.toString() || "1"
+            };
+            if (args.type) {
+              query["type"] = args.type;
+            }
+            if (args.status) {
+              query["status"] = args.status;
+            }
+            const response = await partnrClient.creatorListVaultTransactions(args.vaultId, query);
+            return {
+              content: [{ type: "text", text: JSON.stringify(response) }],
+            };
+          }
+
+          case "creator_list_vault_activities": {
+            const args = request.params.arguments as unknown as Interfaces.ListVaultActivitiesArgs;
+            if (!args.vaultId) {
+              throw new Error(
+                "Missing required arguments: vaultId",
+              );
+            }
+            let query = {
+              limit: args.limit || "20",
+              page: args.page || "1"
+            };
+            if (args.type) {
+              query["type"] = args.type;
+            }
+            if (args.protocol) {
+              query["protocol"] = args.protocol;
+            }
+
+            const response = await partnrClient.listVaultActivities(args.vaultId, query);
+            return {
+              content: [{ type: "text", text: JSON.stringify(response) }],
+            };
+          }
+          case "creator_list_open_positions": {
+            const args = request.params.arguments as unknown as Interfaces.ListOpenPositionsArgs;
+            if (!args.vaultId) {
+              throw new Error(
+                "Missing required arguments: vaultId",
+              );
+            }
+            let query = {
+              status: ActivityStatus.SUCCESS, // Open positions
+              limit: args.limit || "20",
+              page: args.page || "1"
+            };
+            if (args.protocol) {
+              query["protocol"] = args.protocol;
+            }
+            console.error(query);
+            const response = await partnrClient.listVaultActivities(args.vaultId, query);
+            console.error(response);
+            return {
+              content: [{ type: "text", text: JSON.stringify(response) }],
+            };
+          }
+          case "partnr_list_depositors": {
+            const args = request.params.arguments as unknown as Interfaces.ListDepositorArgs;
+            if (!args.vaultId) {
+              throw new Error(
+                "Missing required arguments: vaultId",
+              );
+            }
+            let query = {
+              limit: args.limit?.toString() || "20",
+              page: args.page?.toString() || "1"
+            };
+
+            const response = await partnrClient.listVaultDepositors(args.vaultId, query);
+            return {
+              content: [{ type: "text", text: JSON.stringify(response) }],
+            };
+          }
+          case "partnr_get_my_pnl": {
+            const response = await partnrClient.getMyPnL();
+            console.error(response);
+            return {
+              content: [{ type: "text", text: JSON.stringify(response) }],
+            };
+          }
+          case "partnr_deposit_vault": {
+            const args = request.params.arguments as unknown as Interfaces.DepositArgs;
+            if (!args.vaultId || !args.amount) {
+              throw new Error(
+                "Missing required arguments: vaultId and amount",
+              );
+            }
+
+            const response = await partnrClient.depositVault(args.vaultId, args.amount);
+            return {
+              content: [{ type: "text", text: JSON.stringify(response) }],
+            };
+          }
+          case "partnr_withdraw_vault": {
+            const args = request.params.arguments as unknown as Interfaces.WithdrawArgs;
+            if (!args.vaultId || !args.amount) {
+              throw new Error(
+                "Missing required arguments: vaultId and amount",
+              );
+            }
+
+            const response = await partnrClient.withdrawVault(args.vaultId, args.amount);
+            return {
+              content: [{ type: "text", text: JSON.stringify(response) }],
+            };
+          }
           case "partnr_clear_conversation": {
             return {
               content: [{ type: "text", text: JSON.stringify({message: 'Success'}) }],
+            };
+          }
+          case "creator_swap_token_pancake": {
+            const args = request.params.arguments as unknown as Interfaces.SwapPancakeArgs;
+            if (!args.vaultId || !args.amount || !args.fromToken || !args.toToken) {
+              throw new Error(
+                "Missing required arguments: vaultId, fromToken, toToken, amount",
+              );
+            }
+
+            const response = await partnrClient.swapTokenPancake(args.vaultId, args.fromToken, args.amount, args.toToken);
+            return {
+              content: [{ type: "text", text: JSON.stringify(response) }],
+            };
+          }
+          case 'partnr_get_my_info': {
+            const response = await partnrClient.getProfileByAccessToken();
+            return {
+              content: [{ type: "text", text: JSON.stringify(response) }],
             };
           }
           default:
@@ -266,6 +408,16 @@ async function main() {
           Tools.listVaultsTool,
           Tools.vaultDetailTool,
           Tools.vaultUpdateTool,
+          Tools.listVaultActivitiesTool,
+          Tools.listOpenPositionsTool,
+
+          Tools.depositTool,
+          Tools.withdrawTool,
+          //Tools.listDepositedVaultsTool,
+          Tools.listDepositorsTool,
+          Tools.getMyPnLTool,
+          Tools.getUserInfo,
+          //Tools.pancakeSwap,
         ],
       };
 

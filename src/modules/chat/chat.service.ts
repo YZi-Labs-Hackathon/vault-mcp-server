@@ -29,6 +29,7 @@ export class ChatService {
     @InjectRedis() private readonly redis: any,
     private readonly mcpClient: MCPClient,
   ) {
+    console.log(process.env);
     this.mcpClient.connectToServer(process.env.MCP_SERVER_SCRIPT_PATH);
   }
 
@@ -84,7 +85,29 @@ export class ChatService {
         role: "user",
         content: content,
       });
-      const mcpResponse = await this.mcpClient.processQueryAnthropic(messages, accessToken, profile.detail.address);
+      var mcpResponse;
+      // if(process.env.LLM_MODEL == 'ANTHROPIC') {
+      //   // Clean messages
+      //   messages = messages.filter(element => element.role === 'user' || element.role === 'assistant');
+      //   mcpResponse = await this.mcpClient.processQueryAnthropic(messages, accessToken, profile.address);
+      // } else {
+      //   mcpResponse = await this.mcpClient.processQueryOpenAI(messages, accessToken, profile.address);
+      // }
+
+      if (payload.llmModel == 'CLAUDE') {
+        // Clean messages
+        messages = this.cleanMessages(messages);
+        mcpResponse = await this.mcpClient.processQueryAnthropic(messages, accessToken, profile.detail.address);
+      } else if (payload.llmModel == 'OPENAI') {
+        mcpResponse = await this.mcpClient.processQueryOpenAI(messages, accessToken, profile.detail.address);
+      } else { // Using config value from server
+        if (process.env.LLM_MODEL == 'ANTHROPIC') {
+          messages = this.cleanMessages(messages);
+          mcpResponse = await this.mcpClient.processQueryAnthropic(messages, accessToken, profile.detail.address);
+        } else {
+          mcpResponse = await this.mcpClient.processQueryOpenAI(messages, accessToken, profile.detail.address);
+        }
+      }
       this.redis.set(redisKey, JSON.stringify(mcpResponse.messages), 'EX', 600); // 10 minutes for each chat sections
 
       return {
@@ -135,5 +158,15 @@ export class ChatService {
     const hash = createHash('sha256');
     hash.update(data);
     return hash.digest('hex');
+  }
+
+  cleanMessages(messages: any) {
+    //return [messages[messages.length - 1]];
+    return messages
+      .filter((element: any) => element.role === 'user' || element.role === 'assistant')
+      .map((element: any) => ({
+        role: element.role,
+        content: element.content
+      }));
   }
 }

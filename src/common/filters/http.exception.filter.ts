@@ -8,6 +8,11 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import {
+  CannotCreateEntityIdMapError,
+  EntityNotFoundError,
+  QueryFailedError,
+} from 'typeorm';
 import { HttpResponseError } from './http.response.error';
 import { CustomException } from '../errors';
 
@@ -32,6 +37,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
         status = (exception as CustomException).getStatus();
         message = (exception as CustomException).payload.error;
         code = (exception as CustomException).payload.code;
+        break;
+      case QueryFailedError: // this is a TypeOrm error
+        status = HttpStatus.UNPROCESSABLE_ENTITY;
+        message = (exception as QueryFailedError).message;
+        break;
+      case EntityNotFoundError: // this is another TypeOrm error
+        status = HttpStatus.UNPROCESSABLE_ENTITY;
+        message = (exception as EntityNotFoundError).message;
+        break;
+      case CannotCreateEntityIdMapError:
+        status = HttpStatus.UNPROCESSABLE_ENTITY;
+        message = (exception as CannotCreateEntityIdMapError).message;
         break;
       case BadRequestException:
         status = HttpStatus.BAD_REQUEST;

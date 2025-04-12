@@ -12,6 +12,13 @@ export interface InitArgs {
   baseUrl: string;
 }
 
+export interface SwapPancakeArgs {
+  vaultId: string;
+  fromToken: string;
+  toToken: string;
+  amount: number;
+}
+
 export interface DepositArgs {
   vaultId: string;
   amount: number;
@@ -102,7 +109,7 @@ export interface CreateVaultArgs {
   // isMultiSig?: boolean;
 
   // protocolIds: string[];
-  // defaultProtocolId: string;
+  defaultProtocolId?: string;
 
   // aiAgent?: any;
   logo?: string;

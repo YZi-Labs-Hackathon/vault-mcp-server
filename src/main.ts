@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
 import { HttpExceptionFilter } from './common/filters';
+import { TypeOrmExceptionFilter } from './common/filters/typeorm-exception.filter';
 import { validationPipes } from './common/pipes';
 import { SwaggerModule } from '@nestjs/swagger';
 import { swaggerConfig } from './common/swagger';
@@ -24,7 +25,7 @@ async function bootstrap() {
         process.env.NODE_ENV === 'production' ? undefined : false,
     }),
   );
-  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalFilters(new HttpExceptionFilter(), new TypeOrmExceptionFilter());
   app.useGlobalPipes(validationPipes);
   app.enableCors();
   app.enableShutdownHooks();
